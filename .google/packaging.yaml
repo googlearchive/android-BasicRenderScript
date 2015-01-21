@@ -9,4 +9,9 @@ categories:   [RenderScript]
 languages:    [Java]
 solutions:    [Mobile]
 github:       android-BasicRenderScript
+level:        EXPERT
+icon:         screenshots/icon-web.png
+apiRefs:
+    - android:android.renderscript.RenderScript
+    - android:android.renderscript.Allocation
 license: apache2
