@@ -16,31 +16,32 @@
 
 package com.example.android.basicrenderscript;
 
-import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v8.renderscript.Allocation;
+import android.support.v8.renderscript.RenderScript;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
-import android.support.v8.renderscript.*;
 
-public class MainActivity extends Activity {
-    /* Number of bitmaps that is used for renderScript thread and UI thread synchronization.
-       Ideally, this can be reduced to 2, however in some devices, 2 buffers still showing tierings on UI.
-       Investigating a root cause.
+public class MainActivity extends AppCompatActivity {
+
+    /**
+     * Number of bitmaps that is used for RenderScript thread and UI thread synchronization.
      */
-    private final int NUM_BITMAPS = 3;
+    private final int NUM_BITMAPS = 2;
     private int mCurrentBitmap = 0;
     private Bitmap mBitmapIn;
     private Bitmap[] mBitmapsOut;
     private ImageView mImageView;
 
-    private RenderScript mRS;
     private Allocation mInAllocation;
     private Allocation[] mOutAllocations;
     private ScriptC_saturation mScript;
+    private RenderScriptTask mCurrentTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,9 +49,7 @@ public class MainActivity extends Activity {
 
         setContentView(R.layout.main_layout);
 
-        /*
-         * Initialize UI
-         */
+        // Initialize UI
         mBitmapIn = loadBitmap(R.drawable.data);
         mBitmapsOut = new Bitmap[NUM_BITMAPS];
         for (int i = 0; i < NUM_BITMAPS; ++i) {
@@ -82,63 +81,55 @@ public class MainActivity extends Activity {
             }
         });
 
-        /*
-         * Create renderScript
-         */
+        // Create renderScript
         createScript();
 
-        /*
-         * Invoke renderScript kernel and update imageView
-         */
+        // Invoke renderScript kernel and update imageView
         updateImage(1.0f);
     }
 
-    /*
-     * Initialize RenderScript
-     * In the sample, it creates RenderScript kernel that performs saturation manipulation.
+    /**
+     * Initialize RenderScript.
+     *
+     * <p>In the sample, it creates RenderScript kernel that performs saturation manipulation.</p>
      */
     private void createScript() {
-        //Initialize RS
-        mRS = RenderScript.create(this);
+        // Initialize RS
+        RenderScript rs = RenderScript.create(this);
 
-        //Allocate buffers
-        mInAllocation = Allocation.createFromBitmap(mRS, mBitmapIn);
+        // Allocate buffers
+        mInAllocation = Allocation.createFromBitmap(rs, mBitmapIn);
         mOutAllocations = new Allocation[NUM_BITMAPS];
         for (int i = 0; i < NUM_BITMAPS; ++i) {
-            mOutAllocations[i] = Allocation.createFromBitmap(mRS, mBitmapsOut[i]);
+            mOutAllocations[i] = Allocation.createFromBitmap(rs, mBitmapsOut[i]);
         }
 
-        //Load script
-        mScript = new ScriptC_saturation(mRS);
+        // Load script
+        mScript = new ScriptC_saturation(rs);
     }
 
     /*
      * In the AsyncTask, it invokes RenderScript intrinsics to do a filtering.
-     * After the filtering is done, an operation blocks at Allication.copyTo() in AsyncTask thread.
-     * Once all operation is finished at onPostExecute() in UI thread, it can invalidate and update ImageView UI.
+     * After the filtering is done, an operation blocks at Allocation.copyTo() in AsyncTask thread.
+     * Once all operation is finished at onPostExecute() in UI thread, it can invalidate and update
+     * ImageView UI.
      */
-    private class RenderScriptTask extends AsyncTask<Float, Integer, Integer> {
+    private class RenderScriptTask extends AsyncTask<Float, Void, Integer> {
         Boolean issued = false;
 
         protected Integer doInBackground(Float... values) {
             int index = -1;
-            if (isCancelled() == false) {
+            if (!isCancelled()) {
                 issued = true;
                 index = mCurrentBitmap;
 
-                /*
-                 * Set global variable in RS
-                 */
+                // Set global variable in RS
                 mScript.set_saturationValue(values[0]);
 
-                /*
-                 * Invoke saturation filter kernel
-                 */
+                // Invoke saturation filter kernel
                 mScript.forEach_saturation(mInAllocation, mOutAllocations[index]);
 
-                /*
-                 * Copy to bitmap and invalidate image view
-                 */
+                // Copy to bitmap and invalidate image view
                 mOutAllocations[index].copyTo(mBitmapsOut[index]);
                 mCurrentBitmap = (mCurrentBitmap + 1) % NUM_BITMAPS;
             }
@@ -164,22 +155,21 @@ public class MainActivity extends Activity {
         }
     }
 
-    RenderScriptTask currentTask = null;
-
-    /*
-    Invoke AsynchTask and cancel previous task.
-    When AsyncTasks are piled up (typically in slow device with heavy kernel),
-    Only the latest (and already started) task invokes RenderScript operation.
+    /**
+     * Invoke AsyncTask and cancel previous task. When AsyncTasks are piled up (typically in slow
+     * device with heavy kernel), Only the latest (and already started) task invokes RenderScript
+     * operation.
      */
     private void updateImage(final float f) {
-        if (currentTask != null)
-            currentTask.cancel(false);
-        currentTask = new RenderScriptTask();
-        currentTask.execute(f);
+        if (mCurrentTask != null) {
+            mCurrentTask.cancel(false);
+        }
+        mCurrentTask = new RenderScriptTask();
+        mCurrentTask.execute(f);
     }
 
-    /*
-    Helper to load Bitmap from resource
+    /**
+     * Helper to load Bitmap from resource
      */
     private Bitmap loadBitmap(int resource) {
         final BitmapFactory.Options options = new BitmapFactory.Options();

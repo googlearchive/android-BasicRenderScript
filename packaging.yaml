@@ -11,5 +11,5 @@ languages:    [Java]
 solutions:    [Mobile]
 github:       googlesamples/android-BasicRenderScript
 level:        BEGINNER
-icon:         BasicRenderScriptSample/src/main/res/drawable-xxhdpi/ic_launcher.png
+icon:         screenshots/icon-web.png
 license:      apache2-android
