@@ -28,8 +28,8 @@ RGB value and it's luminance (black-and-white) value, weighted based on the user
 Pre-requisites
 --------------
 
-- Android SDK 25
-- Android Build Tools v25.0.3
+- Android SDK 26
+- Android Build Tools v26.0.1
 - Android Support Repository
 
 Screenshots
